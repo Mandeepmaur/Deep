@@ -2,31 +2,40 @@
 // © LuxAlgo
 
 //@version=5
-indicator("Trendlines with Breaks [LuxAlgo]", "LuxAlgo - Trendlines with Breaks", overlay = true)
+strategy("Trendlines with Breaks [LuxAlgo]", "LuxAlgo - Trendlines with Breaks", overlay = true,
+  default_qty_type = strategy.percent_of_equity, default_qty_value = 10,
+  commission_type = strategy.commission.percent, commission_value = 0.1,
+  max_lines_count = 500)
+
 //------------------------------------------------------------------------------
 //Settings
 //-----------------------------------------------------------------------------{
-length = input.int(14, 'Swing Detection Lookback')
-mult = input.float(1., 'Slope', minval = 0, step = .1)
-calcMethod = input.string('Atr', 'Slope Calculation Method', options = ['Atr','Stdev','Linreg'])
-backpaint = input(true, tooltip = 'Backpainting offset displayed elements in the past. Disable backpainting to see real time information returned by the indicator.')
+length      = input.int(14,    'Swing Detection Lookback')
+mult        = input.float(1.,  'Slope', minval = 0, step = .1)
+calcMethod  = input.string('Atr', 'Slope Calculation Method', options = ['Atr','Stdev','Linreg'])
+backpaint   = input(true, tooltip = 'Backpainting offset displayed elements in the past. Disable backpainting to see real time information returned by the indicator.')
 
 //Style
-upCss = input.color(color.teal, 'Up Trendline Color', group = 'Style')
-dnCss = input.color(color.red, 'Down Trendline Color', group = 'Style')
+upCss   = input.color(color.teal, 'Up Trendline Color',  group = 'Style')
+dnCss   = input.color(color.red,  'Down Trendline Color', group = 'Style')
 showExt = input(true, 'Show Extended Lines')
+
+//Trade Settings
+tradeDir = input.string('Both', 'Trade Direction', options = ['Long', 'Short', 'Both'], group = 'Trade Settings')
+tpPerc   = input.float(2.0, 'Take Profit (%)', minval = 0.1, step = 0.1, group = 'Trade Settings')
+slPerc   = input.float(1.0, 'Stop Loss (%)',   minval = 0.1, step = 0.1, group = 'Trade Settings')
 
 //-----------------------------------------------------------------------------}
 //Calculations
 //-----------------------------------------------------------------------------{
-var upper = 0.
-var lower = 0.
+var upper    = 0.
+var lower    = 0.
 var slope_ph = 0.
 var slope_pl = 0.
 
 var offset = backpaint ? length : 0
 
-n = bar_index
+n   = bar_index
 src = close
 
 ph = ta.pivothigh(length, length)
@@ -35,7 +44,7 @@ pl = ta.pivotlow(length, length)
 //Slope Calculation Method
 slope = switch calcMethod
     'Atr'    => ta.atr(length) / length * mult
-    'Stdev'  => ta.stdev(src,length) / length * mult
+    'Stdev'  => ta.stdev(src, length) / length * mult
     'Linreg' => math.abs(ta.sma(src * n, length) - ta.sma(src, length) * ta.sma(n, length)) / ta.variance(n, length) / 2 * mult
 
 //Get slopes and calculate trendlines
@@ -50,19 +59,23 @@ var dnos = 0
 upos := ph ? 0 : close > upper - slope_ph * length ? 1 : upos
 dnos := pl ? 0 : close < lower + slope_pl * length ? 1 : dnos
 
+//Breakout signals
+longSignal  = upos > upos[1]
+shortSignal = dnos > dnos[1]
+
 //-----------------------------------------------------------------------------}
 //Extended Lines
 //-----------------------------------------------------------------------------{
-var uptl  = line.new(na,na,na,na, color = upCss, style = line.style_dashed, extend = extend.right)
-var dntl  = line.new(na,na,na,na, color = dnCss, style = line.style_dashed, extend = extend.right)
+var uptl = line.new(na, na, na, na, color = upCss, style = line.style_dashed, extend = extend.right)
+var dntl = line.new(na, na, na, na, color = dnCss, style = line.style_dashed, extend = extend.right)
 
 if ph and showExt
-    uptl.set_xy1(n-offset, backpaint ? ph : upper - slope_ph * length)
-    uptl.set_xy2(n-offset+1, backpaint ? ph - slope : upper - slope_ph * (length+1))
+    uptl.set_xy1(n - offset, backpaint ? ph : upper - slope_ph * length)
+    uptl.set_xy2(n - offset + 1, backpaint ? ph - slope : upper - slope_ph * (length + 1))
 
 if pl and showExt
-    dntl.set_xy1(n-offset, backpaint ? pl : lower + slope_pl * length)
-    dntl.set_xy2(n-offset+1, backpaint ? pl + slope : lower + slope_pl * (length+1))
+    dntl.set_xy1(n - offset, backpaint ? pl : lower + slope_pl * length)
+    dntl.set_xy2(n - offset + 1, backpaint ? pl + slope : lower + slope_pl * (length + 1))
 
 //-----------------------------------------------------------------------------}
 //Plots
@@ -70,27 +83,29 @@ if pl and showExt
 plot(backpaint ? upper : upper - slope_ph * length, 'Upper', color = ph ? na : upCss, offset = -offset)
 plot(backpaint ? lower : lower + slope_pl * length, 'Lower', color = pl ? na : dnCss, offset = -offset)
 
-//Breakouts
-plotshape(upos > upos[1] ? low : na, "Upper Break"
-  , shape.labelup
-  , location.absolute
-  , upCss
-  , text = "B"
-  , textcolor = color.white
-  , size = size.tiny)
+//Breakout markers
+plotshape(longSignal  ? low  : na, "Upper Break", shape.labelup,   location.absolute, upCss, text = "B", textcolor = color.white, size = size.tiny)
+plotshape(shortSignal ? high : na, "Lower Break", shape.labeldown, location.absolute, dnCss, text = "B", textcolor = color.white, size = size.tiny)
 
-plotshape(dnos > dnos[1] ? high : na, "Lower Break"
-  , shape.labeldown
-  , location.absolute
-  , dnCss
-  , text = "B"
-  , textcolor = color.white
-  , size = size.tiny)
+//-----------------------------------------------------------------------------}
+//Strategy Entries & Exits
+//-----------------------------------------------------------------------------{
+if longSignal and (tradeDir == 'Long' or tradeDir == 'Both')
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long Exit", "Long",
+      profit = close * tpPerc / 100 / syminfo.mintick,
+      loss   = close * slPerc / 100 / syminfo.mintick)
+
+if shortSignal and (tradeDir == 'Short' or tradeDir == 'Both')
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short Exit", "Short",
+      profit = close * tpPerc / 100 / syminfo.mintick,
+      loss   = close * slPerc / 100 / syminfo.mintick)
 
 //-----------------------------------------------------------------------------}
 //Alerts
 //-----------------------------------------------------------------------------{
-alertcondition(upos > upos[1], 'Upward Breakout', 'Price broke the down-trendline upward')
-alertcondition(dnos > dnos[1], 'Downward Breakout', 'Price broke the up-trendline downward')
+alertcondition(longSignal,  'Upward Breakout',   'Price broke the down-trendline upward')
+alertcondition(shortSignal, 'Downward Breakout', 'Price broke the up-trendline downward')
 
 //-----------------------------------------------------------------------------}
