@@ -1,14 +1,14 @@
 //@version=5
 indicator(
-    title           = "Auto Trendlines — MA Crossover (Multi-TF)",
+    title           = "Auto Trendlines - MA Crossover (Multi-TF)",
     shorttitle      = "AutoTL-MTF",
     overlay         = true,
     max_lines_count = 500
 )
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // INPUTS
-// ═══════════════════════════════════════════════════════
+// =======================================================
 i_fast_len   = input.int(10,     "Fast MA Length",                      minval=1)
 i_slow_len   = input.int(20,     "Slow MA Length",                      minval=1)
 i_use_ema    = input.bool(false, "Use EMA (default: SMA)")
@@ -18,18 +18,16 @@ i_show_d1    = input.bool(true,  "Show D1 Trendlines (Blue)")
 i_show_h1    = input.bool(true,  "Show H1 Trendlines (Red)")
 i_line_width = input.int(2,      "Line Width",                          minval=1, maxval=4)
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // PIP DISTANCE IN PRICE TERMS
 // 1 pip = 10 * mintick  (standard for forex 4/5-decimal pairs)
-// ═══════════════════════════════════════════════════════
+// =======================================================
 pip_size         = syminfo.mintick * 10
 delete_threshold = i_pip_dist * pip_size
 
-// ═══════════════════════════════════════════════════════
-// MOVING AVERAGE + CROSS DATA FUNCTION
-// Called inside request.security() — close/low/high resolve
-// to the requested timeframe's OHLC automatically.
-// ═══════════════════════════════════════════════════════
+// =======================================================
+// MOVING AVERAGE HELPER
+// =======================================================
 f_ma(src, len) =>
     i_use_ema ? ta.ema(src, len) : ta.sma(src, len)
 
@@ -39,12 +37,12 @@ f_swing_data() =>
     slow = f_ma(close, i_slow_len)
     [ta.crossover(fast, slow), ta.crossunder(fast, slow), low, high]
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // MULTI-TIMEFRAME SWING DATA
-//   W1 = Weekly  → Black lines
-//   D1 = Daily   → Blue lines
-//   H1 = Hourly  → Red lines
-// ═══════════════════════════════════════════════════════
+//   W1 = Weekly  -> Black lines
+//   D1 = Daily   -> Blue lines
+//   H1 = Hourly  -> Red lines
+// =======================================================
 [w1_bull, w1_bear, w1_low, w1_high] = request.security(
     syminfo.tickerid, "W",  f_swing_data(), lookahead=barmerge.lookahead_off)
 
@@ -54,9 +52,9 @@ f_swing_data() =>
 [h1_bull, h1_bear, h1_low, h1_high] = request.security(
     syminfo.tickerid, "60", f_swing_data(), lookahead=barmerge.lookahead_off)
 
-// ═══════════════════════════════════════════════════════
-// LINE TRACKING ARRAYS  (parallel arrays, one entry per live line)
-// ═══════════════════════════════════════════════════════
+// =======================================================
+// LINE TRACKING ARRAYS (parallel arrays, one entry per live line)
+// =======================================================
 var line[]  arr_lines    = array.new<line>()
 var bool[]  arr_crossed  = array.new<bool>()
 var float[] arr_cross_px = array.new<float>()
@@ -66,10 +64,10 @@ var float[] arr_y1       = array.new<float>()
 var int[]   arr_x2       = array.new<int>()
 var float[] arr_y2       = array.new<float>()
 
-// ═══════════════════════════════════════════════════════
-// SWING STATE  (last detected swing point per TF × type)
+// =======================================================
+// SWING STATE (last detected swing point per TF and type)
 // Used as the starting anchor for the next trendline.
-// ═══════════════════════════════════════════════════════
+// =======================================================
 var int   w1_sl_bar = na
 var float w1_sl_px  = na  // W1 swing low  (support)
 var int   w1_sh_bar = na
@@ -83,15 +81,15 @@ var float h1_sl_px  = na  // H1 swing low
 var int   h1_sh_bar = na
 var float h1_sh_px  = na  // H1 swing high
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // HELPER: CREATE LINE AND REGISTER IN TRACKING ARRAYS
-// ═══════════════════════════════════════════════════════
+// =======================================================
 f_add_line(x1, y1, x2, y2, clr, is_support) =>
     ln = line.new(
-         x1    = x1,
-         y1    = y1,
-         x2    = x2,
-         y2    = y2,
+         x1     = x1,
+         y1     = y1,
+         x2     = x2,
+         y2     = y2,
          extend = extend.right,
          color  = clr,
          width  = i_line_width,
@@ -105,11 +103,11 @@ f_add_line(x1, y1, x2, y2, clr, is_support) =>
     array.push(arr_x2,       x2)
     array.push(arr_y2,       y2)
 
-// ═══════════════════════════════════════════════════════
-// PROCESS SWING SIGNALS — W1 (Black)
-// Bullish cross  →  swing LOW  →  support trendline
-// Bearish cross  →  swing HIGH →  resistance trendline
-// ═══════════════════════════════════════════════════════
+// =======================================================
+// PROCESS SWING SIGNALS - W1 (Black)
+// Bullish cross -> swing LOW  -> support trendline
+// Bearish cross -> swing HIGH -> resistance trendline
+// =======================================================
 if i_show_w1
     if w1_bull
         if not na(w1_sl_bar)
@@ -123,9 +121,9 @@ if i_show_w1
         w1_sh_bar := bar_index
         w1_sh_px  := w1_high
 
-// ═══════════════════════════════════════════════════════
-// PROCESS SWING SIGNALS — D1 (Blue)
-// ═══════════════════════════════════════════════════════
+// =======================================================
+// PROCESS SWING SIGNALS - D1 (Blue)
+// =======================================================
 if i_show_d1
     if d1_bull
         if not na(d1_sl_bar)
@@ -139,9 +137,9 @@ if i_show_d1
         d1_sh_bar := bar_index
         d1_sh_px  := d1_high
 
-// ═══════════════════════════════════════════════════════
-// PROCESS SWING SIGNALS — H1 (Red)
-// ═══════════════════════════════════════════════════════
+// =======================================================
+// PROCESS SWING SIGNALS - H1 (Red)
+// =======================================================
 if i_show_h1
     if h1_bull
         if not na(h1_sl_bar)
@@ -155,17 +153,17 @@ if i_show_h1
         h1_sh_bar := bar_index
         h1_sh_px  := h1_high
 
-// ═══════════════════════════════════════════════════════
-// LINE LIFECYCLE — CROSS DETECTION + 2000-PIP DELETION
+// =======================================================
+// LINE LIFECYCLE - CROSS DETECTION + 2000-PIP DELETION
 //
-// Each bar, every tracked line is checked:
+// Each bar every tracked line is checked:
 //   1. If not yet crossed: flag it when price closes on the
 //      opposite side of the extrapolated line value.
 //   2. Once crossed: delete it after price moves >= pip_dist
 //      away from the close at the moment of crossing.
 //
 // Iterating backwards allows safe in-loop removal.
-// ═══════════════════════════════════════════════════════
+// =======================================================
 n = array.size(arr_lines)
 if n > 0
     for i = n - 1 to 0 by -1
@@ -189,7 +187,7 @@ if n > 0
                 array.set(arr_crossed,  i, true)
                 array.set(arr_cross_px, i, close)
         else
-            // Already crossed — remove once price is pip_dist away
+            // Already crossed - remove once price is pip_dist away
             cross_px = array.get(arr_cross_px, i)
             if not na(cross_px) and math.abs(close - cross_px) >= delete_threshold
                 line.delete(array.get(arr_lines, i))
@@ -202,9 +200,9 @@ if n > 0
                 array.remove(arr_x2,       i)
                 array.remove(arr_y2,       i)
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // PLOT MAs ON THE CURRENT CHART TIMEFRAME
-// ═══════════════════════════════════════════════════════
+// =======================================================
 ma_fast = f_ma(close, i_fast_len)
 ma_slow = f_ma(close, i_slow_len)
 
