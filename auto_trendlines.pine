@@ -1,5 +1,5 @@
 //@version=5
-indicator("Auto Trendlines - MA Crossover (Multi-TF)", shorttitle="AutoTL-MTF", overlay=true, max_lines_count=500)
+strategy("Auto Trendlines Strategy - MA Crossover (Multi-TF)", shorttitle="AutoTL-Strat", overlay=true, max_lines_count=500, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.percent, commission_value=0.1)
 
 //-----------------------------------------------------------------------------
 // Settings
@@ -7,7 +7,9 @@ indicator("Auto Trendlines - MA Crossover (Multi-TF)", shorttitle="AutoTL-MTF", 
 i_fast_len   = input.int(10,     "Fast MA Length", minval=1)
 i_slow_len   = input.int(20,     "Slow MA Length", minval=1)
 i_use_ema    = input.bool(false, "Use EMA (default: SMA)")
-i_pip_dist   = input.float(2000, "Pips Before Line Deletes After Break", minval=0)
+
+i_tp_pips    = input.float(2000, "Take Profit (pips)", minval=1, group="Trade Settings")
+i_sl_pips    = input.float(1000, "Stop Loss (pips)",   minval=1, group="Trade Settings")
 
 i_show_w1    = input.bool(true, "Show W1 Trendlines", group="Timeframes")
 i_show_d1    = input.bool(true, "Show D1 Trendlines", group="Timeframes")
@@ -20,10 +22,12 @@ i_line_width = input.int(2, "Line Width", minval=1, maxval=4, group="Style")
 //-----------------------------------------------------------------------------}
 
 //-----------------------------------------------------------------------------
-// Pip size
+// Pip size and tick-based TP/SL for strategy.exit()
+// 1 pip = 10 ticks  (standard forex: mintick=0.00001, pip=0.0001)
 //-----------------------------------------------------------------------------{
-pip_size         = syminfo.mintick * 10
-delete_threshold = i_pip_dist * pip_size
+pip_size = syminfo.mintick * 10
+tp_ticks = math.round(i_tp_pips * 10)
+sl_ticks = math.round(i_sl_pips * 10)
 //-----------------------------------------------------------------------------}
 
 //-----------------------------------------------------------------------------
@@ -49,7 +53,6 @@ f_swing_data() =>
 
 //-----------------------------------------------------------------------------
 // Line tracking arrays
-// Coordinates are read back via line.get_x1/y1/x2/y2 — no separate arrays needed
 //-----------------------------------------------------------------------------{
 var line[]  arr_lines    = array.new<line>()
 var bool[]  arr_crossed  = array.new<bool>()
@@ -139,9 +142,20 @@ if i_show_h1
 //-----------------------------------------------------------------------------}
 
 //-----------------------------------------------------------------------------
-// Line lifecycle — break detection + 2000-pip deletion
-// Read coordinates directly from the line object (no separate coord arrays)
+// Line lifecycle + entry signal detection
+//
+// Break of resistance (close > line) -> Long entry
+// Break of support   (close < line) -> Short entry
+// TP/SL managed by strategy.exit() in ticks
+//
+// Flags are collected inside the loop, then entries fired after —
+// this avoids calling strategy.entry() inside a for-loop.
 //-----------------------------------------------------------------------------{
+var bool go_long  = false
+var bool go_short = false
+go_long  := false
+go_short := false
+
 n_lines = array.size(arr_lines)
 if n_lines > 0
     for i = n_lines - 1 to 0 by -1
@@ -149,7 +163,6 @@ if n_lines > 0
         is_sup      = array.get(arr_is_sup,  i) == 1
         was_crossed = array.get(arr_crossed, i)
 
-        // Extrapolate trendline value at the current bar
         x1_i   = line.get_x1(ln)
         y1_f   = line.get_y1(ln)
         x2_i   = line.get_x2(ln)
@@ -161,14 +174,27 @@ if n_lines > 0
             if is_sup ? close < line_y : close > line_y
                 array.set(arr_crossed,  i, true)
                 array.set(arr_cross_px, i, close)
+                if is_sup
+                    go_short := true   // support broken -> short
+                else
+                    go_long  := true   // resistance broken -> long
         else
             cross_px = array.get(arr_cross_px, i)
-            if not na(cross_px) and math.abs(close - cross_px) >= delete_threshold
+            if not na(cross_px) and math.abs(close - cross_px) >= i_tp_pips * pip_size
                 line.delete(ln)
                 array.remove(arr_lines,    i)
                 array.remove(arr_crossed,  i)
                 array.remove(arr_cross_px, i)
                 array.remove(arr_is_sup,   i)
+
+// Fire entries after the loop
+if go_long
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long Exit", "Long", profit=tp_ticks, loss=sl_ticks)
+
+if go_short
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short Exit", "Short", profit=tp_ticks, loss=sl_ticks)
 //-----------------------------------------------------------------------------}
 
 //-----------------------------------------------------------------------------
@@ -176,11 +202,4 @@ if n_lines > 0
 //-----------------------------------------------------------------------------{
 plot(f_ma(close, i_fast_len), "MA Fast", color.blue,   linewidth=1)
 plot(f_ma(close, i_slow_len), "MA Slow", color.orange, linewidth=1)
-//-----------------------------------------------------------------------------}
-
-//-----------------------------------------------------------------------------
-// Alerts
-//-----------------------------------------------------------------------------{
-alertcondition(w1_bull or d1_bull or h1_bull, "Bullish Cross", "MA bullish crossover - swing low detected")
-alertcondition(w1_bear or d1_bear or h1_bear, "Bearish Cross", "MA bearish crossover - swing high detected")
 //-----------------------------------------------------------------------------}
