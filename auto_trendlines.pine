@@ -1,10 +1,5 @@
 //@version=5
-indicator(
-    title           = "Auto Trendlines - MA Crossover (Multi-TF)",
-    shorttitle      = "AutoTL-MTF",
-    overlay         = true,
-    max_lines_count = 500
-)
+indicator("Auto Trendlines - MA Crossover (Multi-TF)", shorttitle="AutoTL-MTF", overlay=true, max_lines_count=500)
 
 // =======================================================
 // INPUTS
