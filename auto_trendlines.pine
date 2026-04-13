@@ -70,12 +70,18 @@ var float[] arr_y2       = array.new<float>()
 // SWING STATE  (last detected swing point per TF × type)
 // Used as the starting anchor for the next trendline.
 // ═══════════════════════════════════════════════════════
-var int   w1_sl_bar = na ;  var float w1_sl_px = na  // W1 swing low  (support)
-var int   w1_sh_bar = na ;  var float w1_sh_px = na  // W1 swing high (resistance)
-var int   d1_sl_bar = na ;  var float d1_sl_px = na  // D1 swing low
-var int   d1_sh_bar = na ;  var float d1_sh_px = na  // D1 swing high
-var int   h1_sl_bar = na ;  var float h1_sl_px = na  // H1 swing low
-var int   h1_sh_bar = na ;  var float h1_sh_px = na  // H1 swing high
+var int   w1_sl_bar = na
+var float w1_sl_px  = na  // W1 swing low  (support)
+var int   w1_sh_bar = na
+var float w1_sh_px  = na  // W1 swing high (resistance)
+var int   d1_sl_bar = na
+var float d1_sl_px  = na  // D1 swing low
+var int   d1_sh_bar = na
+var float d1_sh_px  = na  // D1 swing high
+var int   h1_sl_bar = na
+var float h1_sl_px  = na  // H1 swing low
+var int   h1_sh_bar = na
+var float h1_sh_px  = na  // H1 swing high
 
 // ═══════════════════════════════════════════════════════
 // HELPER: CREATE LINE AND REGISTER IN TRACKING ARRAYS
