@@ -1,9 +1,9 @@
 //@version=5
 strategy("Auto Trendlines Strategy - MA Crossover (Multi-TF)", shorttitle="AutoTL-Strat", overlay=true, max_lines_count=500, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.percent, commission_value=0.1)
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // Settings
-//-----------------------------------------------------------------------------{
+// -----------------------------------------------------------------------------
 i_fast_len   = input.int(10,     "Fast MA Length", minval=1)
 i_slow_len   = input.int(20,     "Slow MA Length", minval=1)
 i_use_ema    = input.bool(false, "Use EMA (default: SMA)")
@@ -19,20 +19,10 @@ css_w1       = input.color(color.black, "W1 Color", group="Style")
 css_d1       = input.color(color.blue,  "D1 Color", group="Style")
 css_h1       = input.color(color.red,   "H1 Color", group="Style")
 i_line_width = input.int(2, "Line Width", minval=1, maxval=4, group="Style")
-//-----------------------------------------------------------------------------}
 
-//-----------------------------------------------------------------------------
-// Pip size and tick-based TP/SL for strategy.exit()
-// 1 pip = 10 ticks  (standard forex: mintick=0.00001, pip=0.0001)
-//-----------------------------------------------------------------------------{
-pip_size = syminfo.mintick * 10
-tp_ticks = math.round(i_tp_pips * 10)
-sl_ticks = math.round(i_sl_pips * 10)
-//-----------------------------------------------------------------------------}
-
-//-----------------------------------------------------------------------------
-// MA + crossover function (evaluated inside request.security per timeframe)
-//-----------------------------------------------------------------------------{
+// -----------------------------------------------------------------------------
+// Functions (declared before any expressions that reference them)
+// -----------------------------------------------------------------------------
 f_ma(src, len) =>
     i_use_ema ? ta.ema(src, len) : ta.sma(src, len)
 
@@ -40,29 +30,35 @@ f_swing_data() =>
     fast = f_ma(close, i_fast_len)
     slow = f_ma(close, i_slow_len)
     [ta.crossover(fast, slow), ta.crossunder(fast, slow), low, high]
-//-----------------------------------------------------------------------------}
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Pip size  (1 pip = 10 * mintick for standard forex)
+// strategy.exit profit/loss are in points (1 point = 1 * mintick)
+// so 1 pip = 10 points
+// -----------------------------------------------------------------------------
+pip_size = syminfo.mintick * 10
+tp_pts   = i_tp_pips * 10
+sl_pts   = i_sl_pips * 10
+
+// -----------------------------------------------------------------------------
 // Multi-timeframe swing signals
 //   W1 -> Black   D1 -> Blue   H1 -> Red
-//-----------------------------------------------------------------------------{
+// -----------------------------------------------------------------------------
 [w1_bull, w1_bear, w1_low, w1_high] = request.security(syminfo.tickerid, "W",  f_swing_data(), lookahead=barmerge.lookahead_off)
 [d1_bull, d1_bear, d1_low, d1_high] = request.security(syminfo.tickerid, "D",  f_swing_data(), lookahead=barmerge.lookahead_off)
 [h1_bull, h1_bear, h1_low, h1_high] = request.security(syminfo.tickerid, "60", f_swing_data(), lookahead=barmerge.lookahead_off)
-//-----------------------------------------------------------------------------}
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // Line tracking arrays
-//-----------------------------------------------------------------------------{
+// -----------------------------------------------------------------------------
 var line[]  arr_lines    = array.new<line>()
 var bool[]  arr_crossed  = array.new<bool>()
 var float[] arr_cross_px = array.new<float>()
-var int[]   arr_is_sup   = array.new<int>()    // 1=support  0=resistance
-//-----------------------------------------------------------------------------}
+var int[]   arr_is_sup   = array.new<int>()
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // Swing state — last detected point per timeframe, used as next line's origin
-//-----------------------------------------------------------------------------{
+// -----------------------------------------------------------------------------
 var int   w1_sl_bar = na
 var float w1_sl_px  = na
 var int   w1_sh_bar = na
@@ -77,22 +73,20 @@ var int   h1_sl_bar = na
 var float h1_sl_px  = na
 var int   h1_sh_bar = na
 var float h1_sh_px  = na
-//-----------------------------------------------------------------------------}
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // Helper: draw line and register it
-//-----------------------------------------------------------------------------{
+// -----------------------------------------------------------------------------
 f_add_line(x1, y1, x2, y2, clr, is_support) =>
     ln = line.new(x1, y1, x2, y2, extend=extend.right, color=clr, width=i_line_width, style=line.style_solid)
     array.push(arr_lines,    ln)
     array.push(arr_crossed,  false)
     array.push(arr_cross_px, float(na))
     array.push(arr_is_sup,   is_support ? 1 : 0)
-//-----------------------------------------------------------------------------}
 
-//-----------------------------------------------------------------------------
-// Process swing signals — W1
-//-----------------------------------------------------------------------------{
+// -----------------------------------------------------------------------------
+// Process swing signals - W1
+// -----------------------------------------------------------------------------
 if i_show_w1
     if w1_bull
         if not na(w1_sl_bar)
@@ -105,11 +99,10 @@ if i_show_w1
             f_add_line(w1_sh_bar, w1_sh_px, bar_index, w1_high, css_w1, false)
         w1_sh_bar := bar_index
         w1_sh_px  := w1_high
-//-----------------------------------------------------------------------------}
 
-//-----------------------------------------------------------------------------
-// Process swing signals — D1
-//-----------------------------------------------------------------------------{
+// -----------------------------------------------------------------------------
+// Process swing signals - D1
+// -----------------------------------------------------------------------------
 if i_show_d1
     if d1_bull
         if not na(d1_sl_bar)
@@ -122,11 +115,10 @@ if i_show_d1
             f_add_line(d1_sh_bar, d1_sh_px, bar_index, d1_high, css_d1, false)
         d1_sh_bar := bar_index
         d1_sh_px  := d1_high
-//-----------------------------------------------------------------------------}
 
-//-----------------------------------------------------------------------------
-// Process swing signals — H1
-//-----------------------------------------------------------------------------{
+// -----------------------------------------------------------------------------
+// Process swing signals - H1
+// -----------------------------------------------------------------------------
 if i_show_h1
     if h1_bull
         if not na(h1_sl_bar)
@@ -139,18 +131,14 @@ if i_show_h1
             f_add_line(h1_sh_bar, h1_sh_px, bar_index, h1_high, css_h1, false)
         h1_sh_bar := bar_index
         h1_sh_px  := h1_high
-//-----------------------------------------------------------------------------}
 
-//-----------------------------------------------------------------------------
-// Line lifecycle + entry signal detection
-//
-// Break of resistance (close > line) -> Long entry
-// Break of support   (close < line) -> Short entry
-// TP/SL managed by strategy.exit() in ticks
-//
-// Flags are collected inside the loop, then entries fired after —
-// this avoids calling strategy.entry() inside a for-loop.
-//-----------------------------------------------------------------------------{
+// -----------------------------------------------------------------------------
+// Line lifecycle + trade signals
+//   Break of resistance -> Long
+//   Break of support    -> Short
+// Flags are set inside the loop, entries fired after to avoid
+// calling strategy.entry() inside a for-loop.
+// -----------------------------------------------------------------------------
 var bool go_long  = false
 var bool go_short = false
 go_long  := false
@@ -175,9 +163,9 @@ if n_lines > 0
                 array.set(arr_crossed,  i, true)
                 array.set(arr_cross_px, i, close)
                 if is_sup
-                    go_short := true   // support broken -> short
+                    go_short := true
                 else
-                    go_long  := true   // resistance broken -> long
+                    go_long  := true
         else
             cross_px = array.get(arr_cross_px, i)
             if not na(cross_px) and math.abs(close - cross_px) >= i_tp_pips * pip_size
@@ -187,19 +175,16 @@ if n_lines > 0
                 array.remove(arr_cross_px, i)
                 array.remove(arr_is_sup,   i)
 
-// Fire entries after the loop
 if go_long
     strategy.entry("Long", strategy.long)
-    strategy.exit("Long Exit", "Long", profit=tp_ticks, loss=sl_ticks)
+    strategy.exit("Long Exit", "Long", profit=tp_pts, loss=sl_pts)
 
 if go_short
     strategy.entry("Short", strategy.short)
-    strategy.exit("Short Exit", "Short", profit=tp_ticks, loss=sl_ticks)
-//-----------------------------------------------------------------------------}
+    strategy.exit("Short Exit", "Short", profit=tp_pts, loss=sl_pts)
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // MA plots (current chart timeframe)
-//-----------------------------------------------------------------------------{
+// -----------------------------------------------------------------------------
 plot(f_ma(close, i_fast_len), "MA Fast", color.blue,   linewidth=1)
 plot(f_ma(close, i_slow_len), "MA Slow", color.orange, linewidth=1)
-//-----------------------------------------------------------------------------}
