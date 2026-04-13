@@ -2,10 +2,7 @@
 // © LuxAlgo
 
 //@version=5
-strategy("Trendlines with Breaks [LuxAlgo]", "LuxAlgo - Trendlines with Breaks", overlay = true,
-  default_qty_type = strategy.percent_of_equity, default_qty_value = 10,
-  commission_type = strategy.commission.percent, commission_value = 0.1,
-  max_lines_count = 500)
+strategy("Trendlines with Breaks [LuxAlgo]", "LuxAlgo - Trendlines with Breaks", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 10, commission_type = strategy.commission.percent, commission_value = 0.1, max_lines_count = 500)
 
 //------------------------------------------------------------------------------
 //Settings
